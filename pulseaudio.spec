@@ -6,24 +6,15 @@
 #global gitcommit  aec811798cd883a454b9b5cd82c77831906bbd2d
 #global shortcommit (c=%{gitcommit}; echo ${c:0:5})
 
-# webrtc bits go wonky without this
-# see also https://lists.fedoraproject.org/archives/list/devel@lists.fedoraproject.org/thread/JQQ66XJSIT2FGTK2YQY7AXMEH5IXMPUX/
-%undefine _strict_symbol_defs_build
+%ifarch x86_64 %{arm}
 %global with_webrtc 1
+%endif
 
 # https://bugzilla.redhat.com/983606
 %global _hardened_build 1
 
-## support systemd activation
+## enable systemd activation
 %global systemd 1
-## enable systemd activation by default (instead of autospawn)
-%if 0%{?fedora} > 27
-%global systemd_activation 1
-## TODO: ship preset to explicitly disable .service, enable .socket
-%else
-# gdm-hooks moved to gdm packaging f28+
-%global gdm_hooks 1
-%endif
 
 ## tcp_wrapper support
 %if 0%{?fedora} < 28
@@ -39,7 +30,7 @@
 Name:           pulseaudio
 Summary:        Improved Linux Sound Server
 Version:        %{pa_major}%{?pa_minor:.%{pa_minor}}
-Release:        18%{?snap:.%{snap}git%{shortcommit}}%{?dist}
+Release:        7%{?snap:.%{snap}git%{shortcommit}}%{?dist}
 License:        LGPLv2+
 URL:            http://www.freedesktop.org/wiki/Software/PulseAudio
 %if 0%{?gitrel}
@@ -57,26 +48,15 @@ Source5:        default.pa-for-gdm
 # revert upstream commit to rely solely on autospawn for autostart, instead
 # include a fallback to manual launch when autospawn fails, like when
 # user disables autospawn, or logging in as root
-# valid even when using systemd socket activation too
-Patch201: pulseaudio-autostart.patch
+Patch1: pulseaudio-autostart.patch
 
 # disable flat-volumes by default
 # https://bugzilla.redhat.com/show_bug.cgi?id=1265267
-Patch202: pulseaudio-9.0-disable_flat_volumes.patch
+Patch2: pulseaudio-9.0-disable_flat_volumes.patch
 
 # bz#1067470,  only start threads on activ CPUs
 # see also https://bugs.freedesktop.org/show_bug.cgi?id=96638
-Patch203: pulseaudio-8.99.2-getaffinity.patch
-
-# upstreamed exit_idle_time solution, set to 0 in managed environments
-Patch204: pulseaudio-11.1-exit_idle_time-2.patch
-
-# workaround rawhide build failures, avoid dup'd memfd_create declaration
-# https://bugs.freedesktop.org/show_bug.cgi?id=104733
-Patch205: pulseaudio-11.1-glibc_memfd.patch
-
-# disable autospawn
-Patch206: pulseaudio-11.1-autospawn_disable.patch
+Patch3: pulseaudio-8.99.2-getaffinity.patch
 
 ## upstream patches
 Patch4: 0004-alsa-mixer-Add-support-for-usb-audio-in-the-Dell-doc.patch
@@ -85,14 +65,9 @@ Patch10: 0010-build-sys-add-iec958-stereo-input.conf-to-dist_alsap.patch
 Patch15: 0015-alsa-mixer-round-not-truncate-in-to_alsa_dB.patch
 Patch16: 0016-alsa-mixer-add-support-for-Steelseries-Arctis-7-head.patch
 Patch18: 0018-build-sys-add-the-Arctis-configuration.patch
-Patch33: 0033-qpaeq-change-license-from-AGPL-to-LGPL-v2.1.patch
 Patch35: 0035-alsa-mixer-Prioritize-hdmi-mappings-over-iec958-mapp.patch
 Patch74: 0074-build-sys-add-the-Dell-dock-TB16-configuration.patch
 Patch84: 0084-sink-source-Don-t-finish-move-if-unlink-happens-afte.patch
-Patch85: 0085-client-conf-Add-a-default-value-for-disable-memfd.patch
-Patch90: 0090-qpaeq-port-to-PyQt5.patch
-Patch93: 0093-alsa-fix-infinite-loop-with-Intel-HDMI-LPE.patch
-Patch96: 0106-memfd-wrappers-only-define-memfd_create-if-not-alrea.patch
 
 ## upstreamable patches
 # patchset from https://bugs.freedesktop.org/show_bug.cgi?id=100488
@@ -106,12 +81,7 @@ Patch104: v5-4-4-bluetooth-make-native-the-default-backend.patch
 # crashing on Bay/Cherry Trail unless realtime-scheduling=no is set
 Patch106: Fix-realtime-scheduling-on-byt-cht.patch
 
-# Russian Fedora patches
-# fix https://bugs.freedesktop.org/show_bug.cgi?id=58746 bug
-Patch1000: 0000-Rewrite-of-thread-function-reduce-send-buffer-size-for-a2dp-sink.patch
-
 BuildRequires:  automake libtool
-BuildRequires:  gcc-c++
 BuildRequires:  pkgconfig(bash-completion)
 %global bash_completionsdir %(pkg-config --variable=completionsdir bash-completion 2>/dev/null || echo '/etc/bash_completion.d')
 BuildRequires:  m4
@@ -153,13 +123,7 @@ BuildRequires:  pkgconfig(soxr)
 %endif
 BuildRequires:  pkgconfig(speexdsp) >= 1.2
 BuildRequires:  libasyncns-devel
-%if 0%{?systemd}
 BuildRequires:  systemd-devel >= 184
-BuildRequires:  systemd
-%endif
-%if 0%{?systemd_activation}
-%{?systemd_requires}
-%endif
 BuildRequires:  dbus-devel
 BuildRequires:  libcap-devel
 BuildRequires:  pkgconfig(fftw3f)
@@ -174,6 +138,7 @@ BuildRequires:  pkgconfig(check)
 Obsoletes:      padevchooser < 1.0
 Requires(pre):  shadow-utils
 Requires:       %{name}-libs%{?_isa} = %{version}-%{release}
+Requires:       systemd >= 184
 Requires:       rtkit
 
 %description
@@ -184,12 +149,8 @@ Enlightened Sound Daemon (ESOUND).
 %package qpaeq
 Summary:	Pulseaudio equalizer interface
 Requires: 	%{name}%{?_isa} = %{version}-%{release}
-Requires:	python-qt5
-%if 0%{?fedora} > 27
-Requires:	python2-dbus
-%else
+Requires:	PyQt4
 Requires:	dbus-python
-%endif
 %description qpaeq
 qpaeq is a equalizer interface for pulseaudio's equalizer sinks.
 
@@ -286,7 +247,6 @@ Obsoletes:      pulseaudio-utils < 3.0-3
 %description utils
 This package contains command line utilities for the PulseAudio sound server.
 
-%if 0%{?gdm_hooks}
 %package gdm-hooks
 Summary:        PulseAudio GDM integration
 License:        LGPLv2+
@@ -296,7 +256,6 @@ Requires(pre):  gdm
 
 %description gdm-hooks
 This package contains GDM integration hooks for the PulseAudio sound server.
-%endif
 
 
 %prep
@@ -309,19 +268,12 @@ This package contains GDM integration hooks for the PulseAudio sound server.
 %patch15 -p1
 %patch16 -p1
 %patch18 -p1
-%patch33 -p1
 %patch35 -p1
 %patch74 -p1
 %patch84 -p1
-%patch85 -p1
-%patch90 -p1
-# skip patch, possibly regressionish, https://bugzilla.redhat.com/show_bug.cgi?id=1551270
-#patch93 -p1
-%patch96 -p1
 
 ## upstreamable patches
-## per comments in the upstream bug, it would *appear* this one is no longer needed after applying patch93
-#patch100 -p1
+%patch100 -p1
 # rawhide-only, for now, on hadess' advice --rex
 %if 0%{?fedora} > 27
 %patch101 -p1
@@ -331,19 +283,9 @@ This package contains GDM integration hooks for the PulseAudio sound server.
 %endif
 %patch106 -p1
 
-%patch201 -p1 -b .autostart
-%patch202 -p1 -b .disable_flat_volumes
-#patch203 -p1 -b .affinity
-%patch204 -p1 -b .exit_idle_time
-#if 0%{?fedora} > 27
-#patch205 -p1 -b .glibc_memfd
-#endif
-%if 0%{?systemd_activation}
-%patch206 -p1 -b .autospawn_disable
-%endif
-
-# Russian Fedora patches
-%patch1000 -p1
+%patch1 -p1 -b .autostart
+%patch2 -p1 -b .disable_flat_volumes
+%patch3 -p1 -b .affinity
 
 sed -i.no_consolekit -e \
   's/^load-module module-console-kit/#load-module module-console-kit/' \
@@ -387,13 +329,12 @@ NOCONFIGURE=1 ./bootstrap.sh
   %{?tests:--enable-tests}
 
 # we really should preopen here --preopen-mods=module-udev-detect.la, --force-preopen
-%make_build V=1
-
+make %{?_smp_mflags} V=1
 make doxygen
 
 
 %install
-%make_install
+make install DESTDIR=$RPM_BUILD_ROOT
 
 ## padsp multilib hack alert
 %ifarch %{multilib_archs}
@@ -414,17 +355,7 @@ popd
 mkdir -p $RPM_BUILD_ROOT%{_prefix}/lib/udev/rules.d
 mv -fv $RPM_BUILD_ROOT/lib/udev/rules.d/90-pulseaudio.rules $RPM_BUILD_ROOT%{_prefix}/lib/udev/rules.d
 
-%if 0%{?gdm_hooks}
 install -p -m644 -D %{SOURCE5} $RPM_BUILD_ROOT%{_localstatedir}/lib/gdm/.pulse/default.pa
-%endif
-
-# take cue from dbus and manually place wants symlink instead of
-# relying on scriptlets exclusively.  Helps handle upgrade cases
-# that standard scriptlets miss.
-%if 0%{?systemd_activation}
-mkdir %{buildroot}%{_userunitdir}/sockets.target.wants
-ln -s ../pulseaudio.socket %{buildroot}%{_userunitdir}/sockets.target.wants/pulseaudio.socket
-%endif
 
 ## unpackaged files
 # extraneous libtool crud
@@ -439,20 +370,7 @@ rm -fv $RPM_BUILD_ROOT%{_libdir}/pulse-%{pa_major}/modules/module-detect.so
 
 %check
 %if 0%{?tests}
-%ifarch %{ix86} s390x
-# FIXME: i686 FAIL: cpu-remap-test
-# FIXME: s390x FAIL: core-util-test
-%global tests_nonfatal 1
-%endif
-%if 0%{?fedora} > 27
-# regression'ish failures on rawhide, not worth failing build (for now) -- rex
-%global tests_nonfatal 1
-%endif
-%make_build check || TESTS_ERROR=$?
-if [ "${TESTS_ERROR}" != "" ]; then
-cat src/test-suite.log
-%{!?tests_nonfatal:exit $TESTS_ERROR}
-fi
+make %{?_smp_mflags} check
 %endif
 
 
@@ -469,6 +387,9 @@ if ! getent passwd pulse >/dev/null ; then
 fi
 exit 0
 
+%post -p /sbin/ldconfig
+%postun -p /sbin/ldconfig
+
 %posttrans
 # handle renamed module-cork-music-on-phone => module-role-cork
 (grep '^load-module module-cork-music-on-phone$' %{_sysconfdir}/pulse/default.pa > /dev/null && \
@@ -476,35 +397,15 @@ exit 0
  %{_sysconfdir}/pulse/default.pa
 ) ||:
 
-%post
-%{?ldconfig}
-%if 0%{?systemd_activation}
-# unsure if we want both .socket and .service here (or only socket)
-# play it safe and do both for now -- rex
-%systemd_user_post pulseaudio.service
-%systemd_user_post pulseaudio.socket
-%endif
-
-%if 0%{?systemd_activation}
-%preun
-%systemd_user_preun pulseaudio.service
-%systemd_user_preun pulseaudio.socket
-%endif
-
-%ldconfig_postun
-
 %files
-%doc README
-%license LICENSE GPL LGPL
+%doc README LICENSE GPL LGPL
 %config(noreplace) %{_sysconfdir}/pulse/daemon.conf
 %config(noreplace) %{_sysconfdir}/pulse/default.pa
 %config(noreplace) %{_sysconfdir}/pulse/system.pa
 %{_sysconfdir}/dbus-1/system.d/pulseaudio-system.conf
 %{bash_completionsdir}/*
 %if 0%{?systemd}
-%{_userunitdir}/pulseaudio.service
-%{_userunitdir}/pulseaudio.socket
-%{_userunitdir}/sockets.target.wants/pulseaudio.socket
+%{_userunitdir}/pulseaudio.*
 %endif
 %{_bindir}/pulseaudio
 %{_libdir}/pulseaudio/libpulsecore-%{pa_major}.so
@@ -717,57 +618,14 @@ exit 0
 %{_mandir}/man1/pasuspender.1*
 %{_mandir}/man1/pax11publish.1*
 
-%if 0%{?gdm_hooks}
+## pulseaudio should be using .config/pulse/ these days anyway
+## TODO: move this to gdm packaging under /var/lib/gdm/.config/pulse -- rex
 %files gdm-hooks
 %attr(0700, gdm, gdm) %dir %{_localstatedir}/lib/gdm/.pulse
 %attr(0600, gdm, gdm) %{_localstatedir}/lib/gdm/.pulse/default.pa
-%endif
 
 
 %changelog
-* Wed Mar 28 2018 Arkady L. Shane <ashejn@russianfedora.pro> - 11.1-18.R
-- resolve https://bugs.freedesktop.org/show_bug.cgi?id=58746 bug
-
-* Wed Mar 21 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-18
-- manually package sockets.target.wants/pulseaudio.socket to help
-  handle socket activation on upgrades
-
-* Tue Mar 20 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-17
-- omit -gdm-hooks, moved to gdm (f28+)
-
-* Tue Mar 13 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-16
-- skip patch93, seems to cause crashes w/headphone jacks (#1544507,#1551270,#1554035)
-
-* Mon Mar 05 2018 Igor Gnatenko <ignatenkobrain@fedoraproject.org> - 11.1-15
-- Fixup ldconfig scriptlets
-
-* Thu Mar 01 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-14
-- use %%make_build, %%make_install
-- enable systemd socket/service activation on f28+ (and disable autospawn)
-
-* Wed Feb 28 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-13
-- use %%license, %%ldconfig_scriptlets
-- use better upstream patch for exit-idle-time
-
-* Sun Feb 25 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-12
-- BR: gcc-c++
-
-* Fri Feb 09 2018 Igor Gnatenko <ignatenkobrain@fedoraproject.org> - 11.1-11
-- Escape macros in %%changelog
-
-* Fri Feb 09 2018 Fedora Release Engineering <releng@fedoraproject.org> - 11.1-10
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_28_Mass_Rebuild
-
-* Thu Feb 01 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-9
-- backport upstream fixes: memfd, qpape PyQt5 port
-
-* Mon Jan 08 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-8
-- exit-idle-time = 4 (#1510301)
-- f28+ ftbfs: memfd_create conflicts
-- drop getaffinity.patch (no longer needed)
-- enable webrtc support for all archs
-- make tests non-fatal on i686,s390x
-
 * Mon Dec 04 2017 Rex Dieter <rdieter@fedoraproject.org> - 11.1-7
 - backport 'pa_sink_input_assert_ref()' crashfix (#1472285)
 - --disable-tcpwrap on f28+ (#1518777)
@@ -997,7 +855,7 @@ exit 0
 - 4.99.3
 
 * Mon Jan 27 2014 Wim Taymans <wtaymans@redhat.com> - 4.99.2-2
-- don't mark .desktop and dbus configurations as %%config
+- don't mark .desktop and dbus configurations as %config
 
 * Fri Jan 24 2014 Rex Dieter <rdieter@fedoraproject.org> - 4.99.2-1
 - 4.99.2 (#1057528)
