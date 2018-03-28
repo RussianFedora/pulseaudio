@@ -81,6 +81,10 @@ Patch104: v5-4-4-bluetooth-make-native-the-default-backend.patch
 # crashing on Bay/Cherry Trail unless realtime-scheduling=no is set
 Patch106: Fix-realtime-scheduling-on-byt-cht.patch
 
+# Russian Fedora patches
+# fix https://bugs.freedesktop.org/show_bug.cgi?id=58746 bug
+Patch1000: 0000-Rewrite-of-thread-function-reduce-send-buffer-size-for-a2dp-sink.patch
+
 BuildRequires:  automake libtool
 BuildRequires:  pkgconfig(bash-completion)
 %global bash_completionsdir %(pkg-config --variable=completionsdir bash-completion 2>/dev/null || echo '/etc/bash_completion.d')
@@ -286,6 +290,9 @@ This package contains GDM integration hooks for the PulseAudio sound server.
 %patch1 -p1 -b .autostart
 %patch2 -p1 -b .disable_flat_volumes
 %patch3 -p1 -b .affinity
+
+# Russian Fedora patches
+%patch1000 -p1
 
 sed -i.no_consolekit -e \
   's/^load-module module-console-kit/#load-module module-console-kit/' \
@@ -626,6 +633,9 @@ exit 0
 
 
 %changelog
+* Wed Mar 28 2017 Arkady L. Shane <ashejn@russianfedora.pro> - 11.1-7.R
+- resolve https://bugs.freedesktop.org/show_bug.cgi?id=58746 bug
+
 * Mon Dec 04 2017 Rex Dieter <rdieter@fedoraproject.org> - 11.1-7
 - backport 'pa_sink_input_assert_ref()' crashfix (#1472285)
 - --disable-tcpwrap on f28+ (#1518777)
