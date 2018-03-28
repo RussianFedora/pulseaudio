@@ -20,9 +20,6 @@
 %if 0%{?fedora} > 27
 %global systemd_activation 1
 ## TODO: ship preset to explicitly disable .service, enable .socket
-%else
-# gdm-hooks moved to gdm packaging f28+
-%global gdm_hooks 1
 %endif
 
 ## tcp_wrapper support
@@ -39,7 +36,7 @@
 Name:           pulseaudio
 Summary:        Improved Linux Sound Server
 Version:        %{pa_major}%{?pa_minor:.%{pa_minor}}
-Release:        18%{?snap:.%{snap}git%{shortcommit}}%{?dist}
+Release:        15%{?snap:.%{snap}git%{shortcommit}}%{?dist}
 License:        LGPLv2+
 URL:            http://www.freedesktop.org/wiki/Software/PulseAudio
 %if 0%{?gitrel}
@@ -105,10 +102,6 @@ Patch104: v5-4-4-bluetooth-make-native-the-default-backend.patch
 # patchset from https://bugs.freedesktop.org/show_bug.cgi?id=100488 fixing pa
 # crashing on Bay/Cherry Trail unless realtime-scheduling=no is set
 Patch106: Fix-realtime-scheduling-on-byt-cht.patch
-
-# Russian Fedora patches
-# fix https://bugs.freedesktop.org/show_bug.cgi?id=58746 bug
-Patch1000: 0000-Rewrite-of-thread-function-reduce-send-buffer-size-for-a2dp-sink.patch
 
 BuildRequires:  automake libtool
 BuildRequires:  gcc-c++
@@ -286,7 +279,6 @@ Obsoletes:      pulseaudio-utils < 3.0-3
 %description utils
 This package contains command line utilities for the PulseAudio sound server.
 
-%if 0%{?gdm_hooks}
 %package gdm-hooks
 Summary:        PulseAudio GDM integration
 License:        LGPLv2+
@@ -296,7 +288,6 @@ Requires(pre):  gdm
 
 %description gdm-hooks
 This package contains GDM integration hooks for the PulseAudio sound server.
-%endif
 
 
 %prep
@@ -315,8 +306,10 @@ This package contains GDM integration hooks for the PulseAudio sound server.
 %patch84 -p1
 %patch85 -p1
 %patch90 -p1
-# skip patch, possibly regressionish, https://bugzilla.redhat.com/show_bug.cgi?id=1551270
-#patch93 -p1
+# skip patch on < f28, possibly regressionish, https://bugzilla.redhat.com/show_bug.cgi?id=1551270
+%if 0%{?fedora} > 27
+%patch93 -p1
+%endif
 %patch96 -p1
 
 ## upstreamable patches
@@ -341,9 +334,6 @@ This package contains GDM integration hooks for the PulseAudio sound server.
 %if 0%{?systemd_activation}
 %patch206 -p1 -b .autospawn_disable
 %endif
-
-# Russian Fedora patches
-%patch1000 -p1
 
 sed -i.no_consolekit -e \
   's/^load-module module-console-kit/#load-module module-console-kit/' \
@@ -414,17 +404,7 @@ popd
 mkdir -p $RPM_BUILD_ROOT%{_prefix}/lib/udev/rules.d
 mv -fv $RPM_BUILD_ROOT/lib/udev/rules.d/90-pulseaudio.rules $RPM_BUILD_ROOT%{_prefix}/lib/udev/rules.d
 
-%if 0%{?gdm_hooks}
 install -p -m644 -D %{SOURCE5} $RPM_BUILD_ROOT%{_localstatedir}/lib/gdm/.pulse/default.pa
-%endif
-
-# take cue from dbus and manually place wants symlink instead of
-# relying on scriptlets exclusively.  Helps handle upgrade cases
-# that standard scriptlets miss.
-%if 0%{?systemd_activation}
-mkdir %{buildroot}%{_userunitdir}/sockets.target.wants
-ln -s ../pulseaudio.socket %{buildroot}%{_userunitdir}/sockets.target.wants/pulseaudio.socket
-%endif
 
 ## unpackaged files
 # extraneous libtool crud
@@ -479,8 +459,6 @@ exit 0
 %post
 %{?ldconfig}
 %if 0%{?systemd_activation}
-# unsure if we want both .socket and .service here (or only socket)
-# play it safe and do both for now -- rex
 %systemd_user_post pulseaudio.service
 %systemd_user_post pulseaudio.socket
 %endif
@@ -502,9 +480,7 @@ exit 0
 %{_sysconfdir}/dbus-1/system.d/pulseaudio-system.conf
 %{bash_completionsdir}/*
 %if 0%{?systemd}
-%{_userunitdir}/pulseaudio.service
-%{_userunitdir}/pulseaudio.socket
-%{_userunitdir}/sockets.target.wants/pulseaudio.socket
+%{_userunitdir}/pulseaudio.*
 %endif
 %{_bindir}/pulseaudio
 %{_libdir}/pulseaudio/libpulsecore-%{pa_major}.so
@@ -717,27 +693,14 @@ exit 0
 %{_mandir}/man1/pasuspender.1*
 %{_mandir}/man1/pax11publish.1*
 
-%if 0%{?gdm_hooks}
+## pulseaudio should be using .config/pulse/ these days anyway
+## TODO: move this to gdm packaging under /var/lib/gdm/.config/pulse -- rex
 %files gdm-hooks
 %attr(0700, gdm, gdm) %dir %{_localstatedir}/lib/gdm/.pulse
 %attr(0600, gdm, gdm) %{_localstatedir}/lib/gdm/.pulse/default.pa
-%endif
 
 
 %changelog
-* Wed Mar 28 2018 Arkady L. Shane <ashejn@russianfedora.pro> - 11.1-18.R
-- resolve https://bugs.freedesktop.org/show_bug.cgi?id=58746 bug
-
-* Wed Mar 21 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-18
-- manually package sockets.target.wants/pulseaudio.socket to help
-  handle socket activation on upgrades
-
-* Tue Mar 20 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-17
-- omit -gdm-hooks, moved to gdm (f28+)
-
-* Tue Mar 13 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-16
-- skip patch93, seems to cause crashes w/headphone jacks (#1544507,#1551270,#1554035)
-
 * Mon Mar 05 2018 Igor Gnatenko <ignatenkobrain@fedoraproject.org> - 11.1-15
 - Fixup ldconfig scriptlets
 
