@@ -633,7 +633,7 @@ exit 0
 
 
 %changelog
-* Wed Mar 28 2017 Arkady L. Shane <ashejn@russianfedora.pro> - 11.1-7.R
+* Wed Mar 28 2018 Arkady L. Shane <ashejn@russianfedora.pro> - 11.1-7.R
 - resolve https://bugs.freedesktop.org/show_bug.cgi?id=58746 bug
 
 * Mon Dec 04 2017 Rex Dieter <rdieter@fedoraproject.org> - 11.1-7
