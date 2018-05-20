@@ -39,7 +39,7 @@
 Name:           pulseaudio
 Summary:        Improved Linux Sound Server
 Version:        %{pa_major}%{?pa_minor:.%{pa_minor}}
-Release:        18%{?snap:.%{snap}git%{shortcommit}}%{?dist}.R
+Release:        18%{?snap:.%{snap}git%{shortcommit}}%{?dist}.1.R
 License:        LGPLv2+
 URL:            http://www.freedesktop.org/wiki/Software/PulseAudio
 %if 0%{?gitrel}
@@ -323,7 +323,7 @@ This package contains GDM integration hooks for the PulseAudio sound server.
 ## per comments in the upstream bug, it would *appear* this one is no longer needed after applying patch93
 #patch100 -p1
 # rawhide-only, for now, on hadess' advice --rex
-%if 0%{?fedora} > 27
+%if 0%{?fedora} > 28
 %patch101 -p1
 %patch102 -p1
 %patch103 -p1
@@ -725,6 +725,9 @@ exit 0
 
 
 %changelog
+* Tue May 08 2018 Rex Dieter <rdieter@fedoraproject.org> - 11.1-18.1.R
+- (f28) omit experimental bluetooth patchset (#1536356)
+
 * Wed Mar 28 2018 Arkady L. Shane <ashejn@russianfedora.pro> - 11.1-18.R
 - resolve https://bugs.freedesktop.org/show_bug.cgi?id=58746 bug
 
